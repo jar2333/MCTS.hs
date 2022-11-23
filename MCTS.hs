@@ -40,6 +40,9 @@ getGameData = rootLabel
 mcts :: GameState g => GameState g => g -> g
 mcts s = s
 
+step :: GameState g => GameTree g -> GameTree g
+step t = evalState (walk t) []
+
 ucb :: GameState g => GameData g -> GameData g -> Double
 ucb GameData{total=p_total} GameData{wins=wins, total=c_total} = (w / n) + c * sqrt (log np / n)
     where n  = fromIntegral (c_total + 1) -- to avoid division by 0?
@@ -85,7 +88,6 @@ walk (Node d ch) = do
     results         <- get
     let children    = updatedChild:rest
     let updatedData = foldr updateWins d results
-
     return $ Node updatedData children
     where 
           selected:rest = sortBy compareUCB ch
