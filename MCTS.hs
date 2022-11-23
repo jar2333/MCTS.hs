@@ -35,13 +35,10 @@ updateWins pl (GameData w t p g)
 type GameTree g = Tree (GameData g)
 
 getGameData :: GameTree g -> GameData g
-getGameData (Node game_data _) = game_data 
+getGameData = rootLabel
 
 mcts :: GameState g => GameState g => g -> g
 mcts s = s
-
-step :: GameState g => GameTree g -> GameTree g
-step t = t
 
 ucb :: GameState g => GameData g -> GameData g -> Double
 ucb GameData{total=p_total} GameData{wins=wins, total=c_total} = (w / n) + c * sqrt (log np / n)
@@ -57,8 +54,8 @@ possibleMoves d@GameData{gameState=g, player=p} = do
     return $ zipWith updateWins results moveData
     where 
           moveData = [GameData 0 0 (opposite p) gs | gs <- states ]
-          results  = [sim gs | gs <- states ]
-          states = take 1 $ next g -- magic number, change later
+          results  = map sim states
+          states   = take 1 $ next g -- magic number, change later
 
 -- Returns a list of children tree nodes created from given node's game state
 expand :: GameState g => GameTree g -> State [GameResult] [GameTree g]
@@ -68,7 +65,7 @@ expand (Node d ch) = do
     return $ ch++newChildren    
 
 -- Takes a tree, traverses to a leaf using UCB, then expands it
--- Use the state monad to propagate upwards the (results of simulation, winning player) as a state
+-- Use the state monad to propagate upwards the list of winning player in simulated/evaluated nodes as a state
 walk :: GameState g => GameTree g -> State [GameResult] (GameTree g)
 walk n@(Node d []) = do 
     newChildren <- expand n 
@@ -84,8 +81,8 @@ walk n@(Node d []) = do
             return $ Node updatedData ch
 
 walk (Node d ch) = do
-    updatedChild <- walk selected
-    results      <- get
+    updatedChild    <- walk selected
+    results         <- get
     let children    = updatedChild:rest
     let updatedData = foldr updateWins d results
 
