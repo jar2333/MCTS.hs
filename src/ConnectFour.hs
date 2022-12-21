@@ -1,4 +1,5 @@
 module ConnectFour (
+    simulation,
     game,
     initial
 ) where
@@ -111,3 +112,19 @@ game n rollout s@(State b _ _ r) turn = do
                 case eval newState of
                     Just(Two) -> putStrLn "Computer Win!"
                     _ -> game n rollout newState (turn+2)
+
+simulation :: Int -> Int -> ConnectFourState StdGen -> Int -> IO ()
+simulation n rollout s@(State _ current _ _) turn = do
+    let player = getPlayer current
+    putStrLn $ "Turn " ++ show turn ++ ":\nPlayer " ++ show player ++"'s turn (choose a column): " ++ show s ++ "\n"
+    
+    let newState = mcts n rollout player s
+    putStrLn $ show newState ++ "\n"
+
+    -- win check
+    case eval newState of
+        Just(p) | p == player -> putStrLn $ "Player " ++ show player ++ " Win!"
+        _ -> simulation n rollout newState (turn+1)
+
+    where getPlayer Red = One
+          getPlayer Yellow = Two
