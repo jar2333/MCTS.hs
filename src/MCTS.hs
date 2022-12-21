@@ -1,10 +1,26 @@
 -- stack --resolver lts-19.23 ghci
+
+module MCTS
+    ( 
+        GameState,
+        next,
+        eval,
+        pick,
+        sim,
+        Player(..),
+        mcts, 
+        drawGameTree,
+        step,
+        root
+    ) where
+
+
 {-# LANGUAGE InstanceSigs #-}
 import Control.Monad.State
-import Control.Monad.Writer
 import Data.Tree
 import Data.List
 import Data.Function
+import Control.Parallel.Strategies
 
 -- From https://gist.github.com/thekarel/9964975
 applyNtimes :: (Num n, Ord n) => n -> (a -> a) -> a -> a
@@ -50,14 +66,12 @@ getGameData :: GameTree g -> GameData g
 getGameData = rootLabel
 
 getScore :: GameData g -> Double
-getScore GameData{wins=wins, total=total} = w / t :: Double
-    where t = fromIntegral total
-          w = fromIntegral wins
+getScore GameData{wins=w, total=t} = (fromIntegral w) / (fromIntegral t) :: Double
 
-root :: GameState g => g -> GameTree g
+root :: g -> GameTree g
 root g = Node (GameData 0 0 One g) []
 
-mcts :: GameState g => GameState g => Int -> g -> g
+mcts :: GameState g => Int -> g -> g
 mcts n s = gameState choice
     where choice = getGameData $ maximumBy (compare `on` getScore . getGameData) ch
           Node _ ch = applyNtimes n step r
@@ -66,24 +80,24 @@ mcts n s = gameState choice
 step :: GameState g => GameTree g -> GameTree g
 step t = evalState (walk t) []
 
-ucb :: GameState g => GameData g -> GameData g -> Double
-ucb GameData{total=p_total} GameData{wins=wins, total=c_total} = (w / n) + c * sqrt (log np / n)
-    where n  = fromIntegral c_total
+ucb :: GameData g -> GameData g -> Double
+ucb GameData{total=p_total} GameData{wins=c_wins, total=c_total} = (w / n) + c * sqrt (log np / n)
+    where n  = fromIntegral c_total --infinity when 0: desired behavior!
           np = fromIntegral p_total
-          w  = fromIntegral wins
+          w  = fromIntegral c_wins
           c  = sqrt (2.0 :: Double)
 
 -- Returns a list of child GameData from given GameData
 possibleMoves :: GameState g => GameData g -> State [GameResult] [GameData g]
-possibleMoves d@GameData{gameState=g, player=p} = do
+possibleMoves GameData{gameState=g, player=p} = do
     put results
     return $ updated ++ other
     where 
           updated  = zipWith updateWins results simulated
           (simulated, other) = splitAt rollout [GameData 0 0 (opposite p) gs | gs <- states ]
-          results  = map sim (take rollout states) 
+          results  = map sim (take rollout states) `using` parList rseq --parallelism
           states   = next g 
-          rollout  = 1 -- magic number, change later
+          rollout  = 2 -- magic number, change later
 
 -- Returns a list of children tree nodes created from given node's game state
 expand :: GameState g => GameTree g -> State [GameResult] [GameTree g]
@@ -92,7 +106,7 @@ expand (Node d ch) = do
     then return []
     else do 
          moves <- possibleMoves d
-         let newChildren = [ Node d [] | d <- moves]
+         let newChildren = [ Node cd [] | cd <- moves]
          return $ ch++newChildren    
 
 -- Takes a tree, traverses to a leaf using UCB, then expands it
@@ -119,28 +133,4 @@ walk (Node d ch) = do
     return $ Node updatedData children
     where 
           selected:rest = sortBy compareUCB ch
-          compareUCB = compare `on` ((*(-1)) . ucb d . getGameData)
-
-
----------------
--- FOR TESTING
----------------
-
-data SimpleState = Yes | No deriving (Show, Eq)
-instance GameState SimpleState where
-    next Yes = [Yes, No]
-    next No  = [Yes]
-    eval Yes = One
-    eval No = Two
-    pick = head
-    sim :: SimpleState -> Player
-    sim = eval
-
-
-testStep :: (Show g, GameState g) => Int -> g -> IO ()
-testStep n g = mapM_ (putStrLn . drawGameTree) (take n $ iterate step r)
-    where r = root g
-
-
-testMCTS :: (Show g, GameState g) => Int -> g -> IO ()
-testMCTS n g = print $ mcts n g
+          compareUCB = compare `on` ((*(-1)) . ucb d . getGameData) --max instead of min hence *-1
