@@ -40,13 +40,19 @@ opposite Tie = Tie
 
 class GameState g where  
     next :: g -> [g]    -- gets gamestates available from given
-    eval :: g -> Player -- determines the winner of the given gamestate
+    eval :: g -> Maybe(Player) -- determines the winner of the given gamestate
     pick :: g -> [g] -> g    -- picks a gamestate from a list of available ones given parent gamestate
 
     sim :: g -> Player  -- gets a winner of a game state (default is a simulation)
     sim g = case next g of
-        [] -> eval g 
-        gs -> sim $ pick g gs
+                [] -> case eval g of 
+                         Just(result) -> result
+                         Nothing      -> Tie --if nothing new is possible, and no clear outcome, it's a Tie
+
+                gs -> let picked = pick g gs 
+                      in case eval picked of 
+                         Just(result) -> result
+                         Nothing      -> sim picked 
 
 data GameData g = GameData {wins :: Int, total :: Int, player :: Player, gameState :: g}
 
@@ -107,29 +113,32 @@ possibleMoves GameData{gameState=g, player=p} = do
 -- Returns a list of children tree nodes created from given node's game state
 expand :: GameState g => GameTree g -> State [GameResult] [GameTree g]
 expand (Node d ch) = do
-    if total d == 0
-    then return []
-    else do 
-         moves <- possibleMoves d
-         let newChildren = [ Node cd [] | cd <- moves]
-         return $ ch++newChildren    
+    if total d == 0 --if never visited
+        then return [] --we create no children (part of MCTS)
+        else do 
+            moves <- possibleMoves d
+            let newChildren = [ Node cd [] | cd <- moves]
+            return $ ch++newChildren    
 
 -- Takes a tree, traverses to a leaf using UCB, then expands it
 -- Use the state monad to propagate upwards the list of winning player in simulated/evaluated nodes as a state
 walk :: GameState g => GameTree g -> State [GameResult] (GameTree g)
+
+-- Leaf node
 walk n@(Node d []) = do 
     newChildren <- expand n 
     case newChildren of
-        [] -> do
+        [] -> do -- If no tree children created, simulate game from leaf and update it with results
             let result = sim $ gameState d 
             put [result]
             let updatedData = updateWins result d
             return $ Node updatedData []
-        ch -> do
+        ch -> do -- If tree children created, some games were simulated. Update current node with sim results.
             results <- get
             let updatedData = foldr updateWins d results
             return $ Node updatedData ch
 
+-- Branch node
 walk (Node d ch) = do
     updatedChild    <- walk selected
     results         <- get

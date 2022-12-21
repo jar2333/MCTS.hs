@@ -4,7 +4,7 @@ import MCTS
 import System.Environment(getArgs)
 import Data.Matrix
 import System.Random
-import Data.Vector(findIndex)
+import Data.Vector(findIndex, toList)
 
 ---------------
 -- FOR TESTING
@@ -15,10 +15,12 @@ data SimpleState = Yes | No deriving (Show, Eq)
 instance GameState SimpleState where
     next Yes = [Yes, No]
     next No  = [Yes]
-    eval Yes = One
-    eval No = Two
+    eval Yes = Just One
+    eval No = Just Two
     pick _ gs = head gs
-    sim = eval
+    sim g = case eval g of
+        Nothing -> Tie
+        Just(r) -> r
 
 testStep :: (Show g, GameState g) => Int -> Player -> g -> IO ()
 testStep n p g = (putStrLn . drawGameTree) (applyNtimes n step r)
@@ -31,7 +33,7 @@ testMCTS n p g = print $ mcts n p g
 -- CONNECT 4 IMPLEMENTATION
 ----------------------------
 
-maxRun :: Ord a => [a] -> Int
+maxRun :: Eq a => [a] -> Int
 maxRun []  = 0
 maxRun lst@(h:_) = length run `max` maxRun rest
             where (run, rest) = span (== h) lst 
@@ -66,18 +68,21 @@ instance (RandomGen r, Show r) => GameState (ConnectFourState r) where
               rowIndeces = map (getRowIndex . findIndex (/= Blank) . \j -> getCol j b) colIndeces --get colummns corresponding to indeces then find index of first row that isn't blank 
               colIndeces = filter (\j -> (getElem 1 j b) == Blank) [1..ncols b] --get column indeces where there is space]
 
-              getRowIndex (Just i) = i - 1
+              getRowIndex (Just i) = i
               getRowIndex Nothing = nrows b 
 
-    -- eval (State b p l _) = 
-    --     where 
-              
+    eval (State b p l _) = if isRun 
+                               then Just(toPlayer $ opposite p) --if a run is encountered, last move completed it, hence last player won
+                               else Nothing
+        where 
+              isRun = maxRun sndDiag >= 4 || maxRun fstDiag >= 4 || maxRun row >= 4 || maxRun col >= 4
 
-    --           sndDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [7,6..(-7)], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
-    --           fstDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [-7..7], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
-    --           row = toList . getRow r b
-    --           col = toList . getCol c b
-    --           (r, c) = l
+              sndDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [7,6..(-7)], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
+              fstDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [-7..7], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
+              row = Data.Vector.toList $ getRow r b
+              col = Data.Vector.toList $ getCol c b
+
+              (r, c) = l
 
     pick (State _ _ _ r) states = states !! i
         where (i, _) = uniformR (0 :: Int, length states - 1) r
@@ -91,8 +96,9 @@ instance (RandomGen r, Show r) => GameState (ConnectFourState r) where
 main :: IO ()
 main = do
     args <- getArgs
-    let arg1 = head args
+    let arg1:arg2:_ = args
     let n = (read arg1) :: Int
-    let nextState = mcts n Two Yes
-    testStep n One nextState
-    testMCTS n One nextState
+    let seed = (read arg1) :: Int
+    -- let nextState = mcts n Two Yes
+    testStep n One (initial seed) --nextState
+    testMCTS n One (initial seed) --nextState
