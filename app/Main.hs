@@ -83,8 +83,8 @@ initial seed = State (matrix 6 7 $ \_ -> Blank) Red (-1,-1) (mkStdGen seed)
 ----------------------------
 -- ENTRY POINT
 ----------------------------
-game :: Int -> ConnectFourState StdGen -> Int -> IO ()
-game n s@(State b _ _ r) turn = do
+game :: Int -> Int -> ConnectFourState StdGen -> Int -> IO ()
+game n rollout s@(State b _ _ r) turn = do
     putStrLn $ "Turn " ++ show turn ++ ":\nPlayer's turn (choose a column): " ++ show s ++ "\n"
     j <- readLn :: IO Int
     let i = place b j
@@ -96,27 +96,28 @@ game n s@(State b _ _ r) turn = do
         Just(One) -> putStrLn "Player Win!"
         _ -> do
                 putStrLn $ "Turn " ++ show (turn+1) ++ ":\nComputer's turn: \n"
-                let newState = mcts n 2 Two playerState
+                let newState = mcts n rollout Two playerState
                 putStrLn $ show newState ++ "\n"
 
                 -- win check
                 case eval newState of
                     Just(Two) -> putStrLn "Computer Win!"
-                    _ -> game n newState (turn+2)
+                    _ -> game n rollout newState (turn+2)
 
 
 main :: IO ()
 main = do
     args <- getArgs
-    let arg1:arg2:_ = args
+    let arg1:arg2:arg3:_ = args
     let n = (read arg1) :: Int
+    let rollout = (read arg2) :: Int
 
-    let seed = (read arg2) :: Int
+    let seed = (read arg3) :: Int
     let initialState = initial seed
 
     putStrLn $ "MCTS DEMO: CONNECT 4"
     putStrLn $ "Warning: no bounds checking on user input yet please be kind to me."
-    game n initialState 1
+    game n rollout initialState 1
 
 
 

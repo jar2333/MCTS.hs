@@ -89,7 +89,7 @@ mcts n r p s = gameState choice
 
 -- Number of rollouts, and a game tree
 step :: GameState g => Int -> GameTree g -> GameTree g
-step r t = evalState (walk t) []
+step r t = evalState (walk t) ([], r)
 
 ucb :: GameData g -> GameData g -> Double
 ucb GameData{total=p_total} GameData{wins=c_wins, total=c_total} = (w / n) + c * sqrt (log np / n)
@@ -99,19 +99,24 @@ ucb GameData{total=p_total} GameData{wins=c_wins, total=c_total} = (w / n) + c *
           c  = sqrt (2.0 :: Double)
 
 -- Returns a list of child GameData from given GameData
-possibleMoves :: GameState g => GameData g -> State [GameResult] [GameData g]
+possibleMoves :: GameState g => GameData g -> State ([GameResult], Int) [GameData g]
 possibleMoves GameData{gameState=g, player=p} = do
-    put results
+    (_, rollout) <- get
+
+    let states  = next g 
+
+    let results = map sim (take rollout states) `using` parList rseq --parallelism
+
+    let (simulated, other) = splitAt rollout [GameData 0 0 (opposing p) gs | gs <- states ]
+    let updated = zipWith updateWins results simulated
+
+    put (results, rollout)
+
     return $ updated ++ other
-    where 
-          updated  = zipWith updateWins results simulated
-          (simulated, other) = splitAt rollout [GameData 0 0 (opposing p) gs | gs <- states ]
-          results  = map sim (take rollout states) `using` parList rseq --parallelism
-          states   = next g 
-          rollout  = 2 -- magic number, change later
+          
 
 -- Returns a list of children tree nodes created from given node's game state
-expand :: GameState g => GameTree g -> State [GameResult] [GameTree g]
+expand :: GameState g => GameTree g -> State ([GameResult], Int) [GameTree g]
 expand (Node d ch) = do
     if total d == 0 --if never visited
         then return [] --we create no children (part of MCTS)
@@ -122,7 +127,7 @@ expand (Node d ch) = do
 
 -- Takes a tree, traverses to a leaf using UCB, then expands it
 -- Use the state monad to propagate upwards the list of winning player in simulated/evaluated nodes as a state
-walk :: GameState g => GameTree g -> State [GameResult] (GameTree g)
+walk :: GameState g => GameTree g -> State ([GameResult], Int) (GameTree g)
 
 -- Leaf node
 walk n@(Node d []) = do 
@@ -130,18 +135,19 @@ walk n@(Node d []) = do
     case newChildren of
         [] -> do -- If no tree children created, simulate game from leaf and update it with results
             let result = sim $ gameState d 
-            put [result]
+            (_, rollout) <- get
+            put ([result], rollout)
             let updatedData = updateWins result d
             return $ Node updatedData []
         ch -> do -- If tree children created, some games were simulated. Update current node with sim results.
-            results <- get
+            (results, _) <- get
             let updatedData = foldr updateWins d results
             return $ Node updatedData ch
 
 -- Branch node
 walk (Node d ch) = do
     updatedChild    <- walk selected
-    results         <- get
+    (results, _)    <- get
     let children    = updatedChild:rest
     let updatedData = foldr updateWins d results
     return $ Node updatedData children
