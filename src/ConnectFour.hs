@@ -26,14 +26,15 @@ other Blank  = Blank
 toPlayer :: Color -> Player
 toPlayer Red    = One
 toPlayer Yellow = Two
+toPlayer Blank  = error "No corresponding player"
 
 ------------------------------------------
 -- Game specific helpers
 ------------------------------------------
 place :: Matrix Color -> Int -> Int
-place board = getRowIndex . findIndex (/= Blank) . \j -> getCol j board
+place brd = getRowIndex . findIndex (/= Blank) . \j -> getCol j brd
     where getRowIndex (Just i) = i
-          getRowIndex Nothing = nrows board 
+          getRowIndex Nothing = nrows brd 
 
 maxRun :: [Color] -> Int
 maxRun []  = 0
@@ -51,22 +52,27 @@ instance (RandomGen r) => Show (ConnectFourState r) where
     show (State b p l _) = "\n" ++ show b ++ "\ncurrent player: " ++ show p ++ "\nlast move: " ++ show l
 
 instance (RandomGen r) => GameState (ConnectFourState r) where 
-    next (State b p _ r) = map (\(move,childBoard) -> State childBoard nextPlayer move newRNG) boards
+    next State{board=b, currentPlayer=p, rng=r} = states
         where 
+              states = zipWith (\childBoard move -> State childBoard nextPlayer move newRNG) boards indeces
+
               nextPlayer = other p
               newRNG = snd $ split r
 
-              boards = zip indeces $ map (\(i,j) -> setElem p (i,j) b) indeces
+              boards = map (\(i,j) -> setElem p (i,j) b) indeces
 
               indeces = zip rowIndeces colIndeces
 
-              rowIndeces = map (place b) colIndeces --get colummns corresponding to indeces then find index of first row that isn't blank 
-              colIndeces = filter (\j -> (getElem 1 j b) == Blank) [1..ncols b] --get column indeces where there is space]
+              -- Get colummns corresponding to indeces then find index of first row that isn't blank 
+              rowIndeces = map (place b) colIndeces 
+              -- Get column indeces where there is space
+              colIndeces = filter (\j -> (getElem 1 j b) == Blank) [1..ncols b] 
 
-    eval (State b p l _) = if isRun 
-                               then Just(toPlayer $ other p) --if a run is encountered, last move completed it, hence last player won
-                               else Nothing
+    eval State{board=b, currentPlayer=p, lastMove=l} = if isRun 
+        then Just(toPlayer $ other p) 
+        else Nothing
         where 
+              -- If a run is encountered, last move completed it, hence last player won
               isRun = maxRun sndDiag >= 4 || maxRun fstDiag >= 4 || maxRun row >= 4 || maxRun col >= 4
 
               sndDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [7,6..(-7)], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
@@ -76,7 +82,7 @@ instance (RandomGen r) => GameState (ConnectFourState r) where
 
               (r, c) = l
 
-    pick (State _ _ _ r) states = states !! i
+    pick State{rng=r} states = states !! i
         where (i, _) = uniformR (0 :: Int, length states - 1) r
 
 initial :: Int -> ConnectFourState StdGen

@@ -22,14 +22,9 @@ module MCTS
 {-# LANGUAGE InstanceSigs #-}
 import Control.Monad.State
 import Data.Tree
-import Data.List
+import Data.List(sortBy, maximumBy)
 import Data.Function
 import Control.Parallel.Strategies
-
--- From https://gist.github.com/thekarel/9964975
-applyNtimes :: (Num n, Ord n) => n -> (a -> a) -> a -> a
-applyNtimes 1 f x = f x
-applyNtimes n f x = f (applyNtimes (n-1) f x)
 
 data Player = One | Two | Tie deriving (Eq, Show)
 
@@ -54,10 +49,25 @@ class GameState g where
                          Just(result) -> result
                          Nothing      -> sim picked 
 
+-- Number of iterations, number of rollouts, initial player, starting state
+mcts :: GameState g => Int -> Int -> Player -> g -> g
+mcts iter rollout first s = gameState choice
+    where choice = getGameData $ maximumBy (compare `on` getScore . getGameData) ch
+          Node _ ch = applyNtimes iter (step rollout) $ root first s
+
+
+-----------------------------------------
+-- MCTS Data Structures 
+-----------------------------------------
+
+-- Holds info relevant to MCTS in each node of the tree
 data GameData g = GameData {wins :: Int, total :: Int, player :: Player, gameState :: g}
 
 showGameData :: Show g => GameData g -> String
 showGameData (GameData w t p g) = show w ++ ", " ++ show t ++ ", " ++ show p ++ ", " ++ show g
+
+getScore :: GameData g -> Double
+getScore GameData{wins=w, total=t} = (fromIntegral w) / (fromIntegral t) :: Double
 
 type GameResult = Player
 
@@ -67,6 +77,7 @@ updateWins pl (GameData w t p g)
     | p == pl   = GameData (w+1) (t+1) p g
     | otherwise = GameData w (t+1) p g
 
+-- The MCTS game tree which is incrementally created
 type GameTree g = Tree (GameData g)
 
 drawGameTree :: Show g => Tree (GameData g) -> String
@@ -75,17 +86,12 @@ drawGameTree = drawTree . fmap showGameData
 getGameData :: GameTree g -> GameData g
 getGameData = rootLabel
 
-getScore :: GameData g -> Double
-getScore GameData{wins=w, total=t} = (fromIntegral w) / (fromIntegral t) :: Double
-
 root :: Player -> g -> GameTree g
 root p g = Node (GameData 0 0 p g) []
 
--- Number of iterations, number of rollouts, initial player, starting state
-mcts :: GameState g => Int -> Int -> Player -> g -> g
-mcts n r p s = gameState choice
-    where choice = getGameData $ maximumBy (compare `on` getScore . getGameData) ch
-          Node _ ch = applyNtimes n (step r) $ root p s
+-----------------------------------------
+-- MCTS Algorithm 
+-----------------------------------------
 
 -- Number of rollouts, and a game tree
 step :: GameState g => Int -> GameTree g -> GameTree g
@@ -155,9 +161,22 @@ walk (Node d ch) = do
           selected:rest = sortBy compareUCB ch
           compareUCB = compare `on` ((*(-1)) . ucb d . getGameData) --max instead of min hence *-1
 
+----------------------------
+-- TESTING
+----------------------------
 
 testStep :: (Show g, GameState g) => Int -> Int -> Player -> g -> IO ()
 testStep n r p g = (putStrLn . drawGameTree) (applyNtimes n (step r) $ root p g)
 
 testMCTS :: (Show g, GameState g) => Int -> Int -> Player -> g -> IO ()
 testMCTS n r p g = print $ mcts n r p g
+
+
+----------------------------
+-- Helpers
+----------------------------
+
+-- From https://gist.github.com/thekarel/9964975
+applyNtimes :: (Num n, Ord n) => n -> (a -> a) -> a -> a
+applyNtimes 1 f x = f x
+applyNtimes n f x = f (applyNtimes (n-1) f x)
