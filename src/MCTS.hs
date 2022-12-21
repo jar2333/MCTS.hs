@@ -2,16 +2,20 @@
 
 module MCTS
     ( 
+        Player(..),
+
         GameState,
         next,
         eval,
         pick,
         sim,
-        Player(..),
+        
         mcts, 
         drawGameTree,
+
         step,
-        root
+        root,
+        applyNtimes
     ) where
 
 
@@ -68,14 +72,15 @@ getGameData = rootLabel
 getScore :: GameData g -> Double
 getScore GameData{wins=w, total=t} = (fromIntegral w) / (fromIntegral t) :: Double
 
-root :: g -> GameTree g
-root g = Node (GameData 0 0 One g) []
+root :: Player -> g -> GameTree g
+root p g = Node (GameData 0 0 p g) []
 
-mcts :: GameState g => Int -> g -> g
-mcts n s = gameState choice
+-- Number of iterations, initial player, starting state
+mcts :: GameState g => Int -> Player -> g -> g
+mcts n p s = gameState choice
     where choice = getGameData $ maximumBy (compare `on` getScore . getGameData) ch
           Node _ ch = applyNtimes n step r
-          r = root s
+          r = root p s
 
 step :: GameState g => GameTree g -> GameTree g
 step t = evalState (walk t) []
@@ -116,7 +121,7 @@ walk n@(Node d []) = do
     newChildren <- expand n 
     case newChildren of
         [] -> do
-            let result = eval $ gameState d 
+            let result = sim $ gameState d 
             put [result]
             let updatedData = updateWins result d
             return $ Node updatedData []

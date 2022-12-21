@@ -1,6 +1,10 @@
 module Main (main) where
 
 import MCTS
+import System.Environment(getArgs)
+import Data.Matrix
+import System.Random
+import Data.Vector(findIndex)
 
 ---------------
 -- FOR TESTING
@@ -16,12 +20,59 @@ instance GameState SimpleState where
     pick = head
     sim = eval
 
-testStep :: (Show g, GameState g) => Int -> g -> IO ()
-testStep n g = mapM_ (putStrLn . drawGameTree) (take n $ iterate step r)
-    where r = root g
+testStep :: (Show g, GameState g) => Int -> Player -> g -> IO ()
+testStep n p g = (putStrLn . drawGameTree) (applyNtimes n step r)
+    where r = root p g
 
-testMCTS :: (Show g, GameState g) => Int -> g -> IO ()
-testMCTS n g = print $ mcts n g
+testMCTS :: (Show g, GameState g) => Int -> Player -> g -> IO ()
+testMCTS n p g = print $ mcts n p g
+
+----------------------------
+-- CONNECT 4 IMPLEMENTATION
+----------------------------
+
+data Color = Red | Yellow | Blank deriving (Show, Eq)
+
+opposite :: Color -> Color
+opposite Red    = Yellow
+opposite Yellow = Red
+opposite Blank  = Blank
+
+data (RandomGen r, Show r) => ConnectFourState r = State {board :: Matrix Color, currentPlayer :: Color, lastMove :: (Int, Int), rng :: r} deriving (Show) 
+
+initial :: Int -> ConnectFourState StdGen
+initial seed = State (matrix 6 7 $ \_ -> Blank) Red (-1,-1) (mkStdGen seed)
+
+instance (RandomGen r, Show r) => GameState (ConnectFourState r) where 
+    next (State b p _ r) = map (\(move,childBoard) -> State childBoard nextPlayer move newRNG) boards
+        where 
+              nextPlayer = opposite p
+              newRNG = snd $ split r
+
+              boards = zip indeces $ map (\(i,j) -> setElem p (i,j) b) indeces
+
+              indeces = zip rowIndeces colIndeces
+
+              rowIndeces = map (getRowIndex . findIndex (/= Blank) . \j -> getCol j b) colIndeces --get colummns corresponding to indeces then find index of first row that isn't blank 
+              colIndeces = filter (\j -> (getElem 1 j b) == Blank) [1..ncols b] --get column indeces where there is space]
+
+              getRowIndex (Just i) = i - 1
+              getRowIndex Nothing = nrows b 
+
+    -- eval (State b p l rng) = 
+
+
+
+----------------------------
+-- ENTRY POINT
+----------------------------
 
 main :: IO ()
-main = testStep 7 Yes
+main = do
+    args <- getArgs
+    let arg1 = head args
+    let n = (read arg1) :: Int
+    -- testStep n Yes
+    let nextState = mcts n Two Yes
+    testStep n One nextState
+    testMCTS n One nextState

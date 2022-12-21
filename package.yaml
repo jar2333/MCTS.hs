@@ -49,6 +49,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - MCTS
+    - matrix
+    - random
+    - vector
 
 tests:
   MCTS-test:
