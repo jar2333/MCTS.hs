@@ -17,7 +17,7 @@ instance GameState SimpleState where
     next No  = [Yes]
     eval Yes = One
     eval No = Two
-    pick = head
+    pick _ gs = head gs
     sim = eval
 
 testStep :: (Show g, GameState g) => Int -> Player -> g -> IO ()
@@ -61,6 +61,9 @@ instance (RandomGen r, Show r) => GameState (ConnectFourState r) where
 
     -- eval (State b p l rng) = 
 
+    pick (State _ _ _ r) states = states !! i
+        where (i, _) = uniformR (0 :: Int, length states) r
+
 
 
 ----------------------------
@@ -72,7 +75,6 @@ main = do
     args <- getArgs
     let arg1 = head args
     let n = (read arg1) :: Int
-    -- testStep n Yes
     let nextState = mcts n Two Yes
     testStep n One nextState
     testMCTS n One nextState
