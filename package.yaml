@@ -24,6 +24,9 @@ dependencies:
 - mtl
 - containers
 - parallel
+- matrix
+- random
+- vector
 
 ghc-options:
 - -Wall
@@ -51,9 +54,7 @@ executables:
     - -eventlog
     dependencies:
     - MCTS
-    - matrix
-    - random
-    - vector
+
 
 tests:
   MCTS-test:
