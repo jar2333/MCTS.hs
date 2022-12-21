@@ -17,6 +17,4 @@ The parameters are as follows:
 
 To run the simulation (agent vs agent):
 
-`stack exec MCTS-exe <iter> <rollout>`
-
 `stack exec MCTS-simulation`
