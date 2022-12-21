@@ -10,7 +10,12 @@ import Data.Vector(findIndex, toList)
 -- CONNECT 4 IMPLEMENTATION
 ----------------------------
 
-data Color = Red | Yellow | Blank deriving (Show, Eq)
+data Color = Red | Yellow | Blank deriving (Eq)
+
+instance Show Color where
+    show Red = "R"
+    show Yellow = "Y"
+    show Blank = "."
 
 other :: Color -> Color
 other Red    = Yellow
