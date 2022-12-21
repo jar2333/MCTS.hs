@@ -1,11 +1,17 @@
+-- stack --resolver lts-19.23 ghci
+{-# LANGUAGE InstanceSigs #-}
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Tree
 import Data.List
 import Data.Function
 
+-- From https://gist.github.com/thekarel/9964975
+applyNtimes :: (Num n, Ord n) => n -> (a -> a) -> a -> a
+applyNtimes 1 f x = f x
+applyNtimes n f x = f (applyNtimes (n-1) f x)
 
-data Player = One | Two | Tie deriving (Eq)
+data Player = One | Two | Tie deriving (Eq, Show)
 
 opposite :: Player -> Player
 opposite One = Two
@@ -24,6 +30,9 @@ class GameState g where
 
 data GameData g = GameData {wins :: Int, total :: Int, player :: Player, gameState :: g}
 
+showGameData :: Show g => GameData g -> String
+showGameData (GameData w t p g) = show w ++ ", " ++ show t ++ ", " ++ show p ++ ", " ++ show g
+
 type GameResult = Player
 
 -- Takes a game result specifying the win amount and player who won to update game data
@@ -34,18 +43,32 @@ updateWins pl (GameData w t p g)
 
 type GameTree g = Tree (GameData g)
 
+drawGameTree :: Show g => Tree (GameData g) -> String
+drawGameTree = drawTree . fmap showGameData
+
 getGameData :: GameTree g -> GameData g
 getGameData = rootLabel
 
-mcts :: GameState g => GameState g => g -> g
-mcts s = s
+getScore :: GameData g -> Double
+getScore GameData{wins=wins, total=total} = w / t :: Double
+    where t = fromIntegral total
+          w = fromIntegral wins
+
+root :: GameState g => g -> GameTree g
+root g = Node (GameData 0 0 One g) []
+
+mcts :: GameState g => GameState g => Int -> g -> g
+mcts n s = gameState choice
+    where choice = getGameData $ maximumBy (compare `on` getScore . getGameData) ch
+          Node _ ch = applyNtimes n step r
+          r = root s
 
 step :: GameState g => GameTree g -> GameTree g
 step t = evalState (walk t) []
 
 ucb :: GameState g => GameData g -> GameData g -> Double
 ucb GameData{total=p_total} GameData{wins=wins, total=c_total} = (w / n) + c * sqrt (log np / n)
-    where n  = fromIntegral (c_total + 1) -- to avoid division by 0?
+    where n  = fromIntegral c_total
           np = fromIntegral p_total
           w  = fromIntegral wins
           c  = sqrt (2.0 :: Double)
@@ -54,18 +77,23 @@ ucb GameData{total=p_total} GameData{wins=wins, total=c_total} = (w / n) + c * s
 possibleMoves :: GameState g => GameData g -> State [GameResult] [GameData g]
 possibleMoves d@GameData{gameState=g, player=p} = do
     put results
-    return $ zipWith updateWins results moveData
+    return $ updated ++ other
     where 
-          moveData = [GameData 0 0 (opposite p) gs | gs <- states ]
-          results  = map sim states
-          states   = take 1 $ next g -- magic number, change later
+          updated  = zipWith updateWins results simulated
+          (simulated, other) = splitAt rollout [GameData 0 0 (opposite p) gs | gs <- states ]
+          results  = map sim (take rollout states) 
+          states   = next g 
+          rollout  = 1 -- magic number, change later
 
 -- Returns a list of children tree nodes created from given node's game state
 expand :: GameState g => GameTree g -> State [GameResult] [GameTree g]
 expand (Node d ch) = do
-    moves <- possibleMoves d
-    let newChildren = [ Node d [] | d <- moves]
-    return $ ch++newChildren    
+    if total d == 0
+    then return []
+    else do 
+         moves <- possibleMoves d
+         let newChildren = [ Node d [] | d <- moves]
+         return $ ch++newChildren    
 
 -- Takes a tree, traverses to a leaf using UCB, then expands it
 -- Use the state monad to propagate upwards the list of winning player in simulated/evaluated nodes as a state
@@ -91,9 +119,28 @@ walk (Node d ch) = do
     return $ Node updatedData children
     where 
           selected:rest = sortBy compareUCB ch
-          compareUCB = compare `on` (ucb d . getGameData)
+          compareUCB = compare `on` ((*(-1)) . ucb d . getGameData)
 
 
+---------------
+-- FOR TESTING
+---------------
+
+data SimpleState = Yes | No deriving (Show, Eq)
+instance GameState SimpleState where
+    next Yes = [Yes, No]
+    next No  = [Yes]
+    eval Yes = One
+    eval No = Two
+    pick = head
+    sim :: SimpleState -> Player
+    sim = eval
 
 
+testStep :: (Show g, GameState g) => Int -> g -> IO ()
+testStep n g = mapM_ (putStrLn . drawGameTree) (take n $ iterate step r)
+    where r = root g
 
+
+testMCTS :: (Show g, GameState g) => Int -> g -> IO ()
+testMCTS n g = print $ mcts n g
