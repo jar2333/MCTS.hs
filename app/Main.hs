@@ -31,12 +31,22 @@ testMCTS n p g = print $ mcts n p g
 -- CONNECT 4 IMPLEMENTATION
 ----------------------------
 
+maxRun :: Ord a => [a] -> Int
+maxRun []  = 0
+maxRun lst@(h:_) = length run `max` maxRun rest
+            where (run, rest) = span (== h) lst 
+
 data Color = Red | Yellow | Blank deriving (Show, Eq)
 
 opposite :: Color -> Color
 opposite Red    = Yellow
 opposite Yellow = Red
 opposite Blank  = Blank
+
+toPlayer :: Color -> Player
+toPlayer Red    = One
+toPlayer Yellow = Two
+toPlayer Blank  = Tie --garbage
 
 data (RandomGen r, Show r) => ConnectFourState r = State {board :: Matrix Color, currentPlayer :: Color, lastMove :: (Int, Int), rng :: r} deriving (Show) 
 
@@ -59,10 +69,18 @@ instance (RandomGen r, Show r) => GameState (ConnectFourState r) where
               getRowIndex (Just i) = i - 1
               getRowIndex Nothing = nrows b 
 
-    -- eval (State b p l rng) = 
+    -- eval (State b p l _) = 
+    --     where 
+              
+
+    --           sndDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [7,6..(-7)], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
+    --           fstDiag = [getElem (r+i) (c+j) b | (i, j) <- zip [-7..7] [-7..7], 1 <= r+i && r+i <= 6 && 1 <= c+j && c+j <= 7]
+    --           row = toList . getRow r b
+    --           col = toList . getCol c b
+    --           (r, c) = l
 
     pick (State _ _ _ r) states = states !! i
-        where (i, _) = uniformR (0 :: Int, length states) r
+        where (i, _) = uniformR (0 :: Int, length states - 1) r
 
 
 

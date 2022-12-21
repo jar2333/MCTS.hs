@@ -41,7 +41,7 @@ opposite Tie = Tie
 class GameState g where  
     next :: g -> [g]    -- gets gamestates available from given
     eval :: g -> Player -- determines the winner of the given gamestate
-    pick :: g -> [g] -> g    -- picks a gamestate from a list of available ones
+    pick :: g -> [g] -> g    -- picks a gamestate from a list of available ones given parent gamestate
 
     sim :: g -> Player  -- gets a winner of a game state (default is a simulation)
     sim g = case next g of
