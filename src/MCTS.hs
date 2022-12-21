@@ -81,15 +81,15 @@ getScore GameData{wins=w, total=t} = (fromIntegral w) / (fromIntegral t) :: Doub
 root :: Player -> g -> GameTree g
 root p g = Node (GameData 0 0 p g) []
 
--- Number of iterations, initial player, starting state
-mcts :: GameState g => Int -> Player -> g -> g
-mcts n p s = gameState choice
+-- Number of iterations, number of rollouts, initial player, starting state
+mcts :: GameState g => Int -> Int -> Player -> g -> g
+mcts n r p s = gameState choice
     where choice = getGameData $ maximumBy (compare `on` getScore . getGameData) ch
-          Node _ ch = applyNtimes n step r
-          r = root p s
+          Node _ ch = applyNtimes n (step r) $ root p s
 
-step :: GameState g => GameTree g -> GameTree g
-step t = evalState (walk t) []
+-- Number of rollouts, and a game tree
+step :: GameState g => Int -> GameTree g -> GameTree g
+step r t = evalState (walk t) []
 
 ucb :: GameData g -> GameData g -> Double
 ucb GameData{total=p_total} GameData{wins=c_wins, total=c_total} = (w / n) + c * sqrt (log np / n)
@@ -150,9 +150,8 @@ walk (Node d ch) = do
           compareUCB = compare `on` ((*(-1)) . ucb d . getGameData) --max instead of min hence *-1
 
 
-testStep :: (Show g, GameState g) => Int -> Player -> g -> IO ()
-testStep n p g = (putStrLn . drawGameTree) (applyNtimes n step r)
-    where r = root p g
+testStep :: (Show g, GameState g) => Int -> Int -> Player -> g -> IO ()
+testStep n r p g = (putStrLn . drawGameTree) (applyNtimes n (step r) $ root p g)
 
-testMCTS :: (Show g, GameState g) => Int -> Player -> g -> IO ()
-testMCTS n p g = print $ mcts n p g
+testMCTS :: (Show g, GameState g) => Int -> Int -> Player -> g -> IO ()
+testMCTS n r p g = print $ mcts n r p g

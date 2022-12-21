@@ -9,7 +9,6 @@ import Data.Vector(findIndex, toList)
 ----------------------------
 -- CONNECT 4 IMPLEMENTATION
 ----------------------------
-
 data Color = Red | Yellow | Blank deriving (Eq)
 
 instance Show Color where
@@ -44,7 +43,6 @@ maxRun lst@(h:_) = (case h of
 ------------------------------------------
 -- MCTS GameState instance definitions!
 ------------------------------------------
-
 data (RandomGen r) => ConnectFourState r = State {board :: Matrix Color, currentPlayer :: Color, lastMove :: (Int, Int), rng :: r}
 
 instance (RandomGen r) => Show (ConnectFourState r) where
@@ -85,7 +83,6 @@ initial seed = State (matrix 6 7 $ \_ -> Blank) Red (-1,-1) (mkStdGen seed)
 ----------------------------
 -- ENTRY POINT
 ----------------------------
-
 game :: Int -> ConnectFourState StdGen -> Int -> IO ()
 game n s@(State b _ _ r) turn = do
     putStrLn $ "Turn " ++ show turn ++ ":\nPlayer's turn (choose a column): " ++ show s ++ "\n"
@@ -99,7 +96,7 @@ game n s@(State b _ _ r) turn = do
         Just(One) -> putStrLn "Player Win!"
         _ -> do
                 putStrLn $ "Turn " ++ show (turn+1) ++ ":\nComputer's turn: \n"
-                let newState = mcts n Two playerState
+                let newState = mcts n 2 Two playerState
                 putStrLn $ show newState ++ "\n"
 
                 -- win check
