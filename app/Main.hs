@@ -22,57 +22,60 @@ instance GameState SimpleState where
         Nothing -> Tie
         Just(r) -> r
 
-testStep :: (Show g, GameState g) => Int -> Player -> g -> IO ()
-testStep n p g = (putStrLn . drawGameTree) (applyNtimes n step r)
-    where r = root p g
-
-testMCTS :: (Show g, GameState g) => Int -> Player -> g -> IO ()
-testMCTS n p g = print $ mcts n p g
-
 ----------------------------
 -- CONNECT 4 IMPLEMENTATION
 ----------------------------
 
-maxRun :: Eq a => [a] -> Int
-maxRun []  = 0
-maxRun lst@(h:_) = length run `max` maxRun rest
-            where (run, rest) = span (== h) lst 
-
 data Color = Red | Yellow | Blank deriving (Show, Eq)
 
-opposite :: Color -> Color
-opposite Red    = Yellow
-opposite Yellow = Red
-opposite Blank  = Blank
+other :: Color -> Color
+other Red    = Yellow
+other Yellow = Red
+other Blank  = Blank
 
 toPlayer :: Color -> Player
 toPlayer Red    = One
 toPlayer Yellow = Two
-toPlayer Blank  = Tie --garbage
 
-data (RandomGen r, Show r) => ConnectFourState r = State {board :: Matrix Color, currentPlayer :: Color, lastMove :: (Int, Int), rng :: r} deriving (Show) 
+------------------------------------------
+-- Game specific helpers
+------------------------------------------
+place :: Matrix Color -> Int -> Int
+place board = getRowIndex . findIndex (/= Blank) . \j -> getCol j board
+    where getRowIndex (Just i) = i
+          getRowIndex Nothing = nrows board 
 
-initial :: Int -> ConnectFourState StdGen
-initial seed = State (matrix 6 7 $ \_ -> Blank) Red (-1,-1) (mkStdGen seed)
+maxRun :: [Color] -> Int
+maxRun []  = 0
+maxRun lst@(h:_) = (case h of 
+                        Blank -> 0 
+                        _     -> length run) `max` maxRun rest
+            where (run, rest) = span (== h) lst 
 
-instance (RandomGen r, Show r) => GameState (ConnectFourState r) where 
+------------------------------------------
+-- MCTS GameState instance definitions!
+------------------------------------------
+
+data (RandomGen r) => ConnectFourState r = State {board :: Matrix Color, currentPlayer :: Color, lastMove :: (Int, Int), rng :: r}
+
+instance (RandomGen r) => Show (ConnectFourState r) where
+    show (State b p l _) = "\n" ++ show b ++ "\ncurrent player: " ++ show p ++ "\nlast move: " ++ show l
+
+instance (RandomGen r) => GameState (ConnectFourState r) where 
     next (State b p _ r) = map (\(move,childBoard) -> State childBoard nextPlayer move newRNG) boards
         where 
-              nextPlayer = opposite p
+              nextPlayer = other p
               newRNG = snd $ split r
 
               boards = zip indeces $ map (\(i,j) -> setElem p (i,j) b) indeces
 
               indeces = zip rowIndeces colIndeces
 
-              rowIndeces = map (getRowIndex . findIndex (/= Blank) . \j -> getCol j b) colIndeces --get colummns corresponding to indeces then find index of first row that isn't blank 
+              rowIndeces = map (place b) colIndeces --get colummns corresponding to indeces then find index of first row that isn't blank 
               colIndeces = filter (\j -> (getElem 1 j b) == Blank) [1..ncols b] --get column indeces where there is space]
 
-              getRowIndex (Just i) = i
-              getRowIndex Nothing = nrows b 
-
     eval (State b p l _) = if isRun 
-                               then Just(toPlayer $ opposite p) --if a run is encountered, last move completed it, hence last player won
+                               then Just(toPlayer $ other p) --if a run is encountered, last move completed it, hence last player won
                                else Nothing
         where 
               isRun = maxRun sndDiag >= 4 || maxRun fstDiag >= 4 || maxRun row >= 4 || maxRun col >= 4
@@ -87,18 +90,47 @@ instance (RandomGen r, Show r) => GameState (ConnectFourState r) where
     pick (State _ _ _ r) states = states !! i
         where (i, _) = uniformR (0 :: Int, length states - 1) r
 
-
+initial :: Int -> ConnectFourState StdGen
+initial seed = State (matrix 6 7 $ \_ -> Blank) Red (-1,-1) (mkStdGen seed)
 
 ----------------------------
 -- ENTRY POINT
 ----------------------------
+
+game :: Int -> ConnectFourState StdGen -> Int -> IO ()
+game n s@(State b _ _ r) turn = do
+    putStrLn $ "Turn " ++ show turn ++ ":\nPlayer's turn (choose a column): " ++ show s ++ "\n"
+    j <- readLn :: IO Int
+    let i = place b j
+    let playerState = State (setElem Red (i,j) b) Yellow (i,j) r
+    putStrLn $ show playerState ++ "\n"
+
+    -- win check
+    case eval playerState of
+        Just(One) -> putStrLn "Player Win!"
+        _ -> do
+                putStrLn $ "Turn " ++ show (turn+1) ++ ":\nComputer's turn: \n"
+                let newState = mcts n Two playerState
+                putStrLn $ show newState ++ "\n"
+
+                -- win check
+                case eval newState of
+                    Just(Two) -> putStrLn "Computer Win!"
+                    _ -> game n newState (turn+2)
+
 
 main :: IO ()
 main = do
     args <- getArgs
     let arg1:arg2:_ = args
     let n = (read arg1) :: Int
-    let seed = (read arg1) :: Int
-    -- let nextState = mcts n Two Yes
-    testStep n One (initial seed) --nextState
-    testMCTS n One (initial seed) --nextState
+
+    let seed = (read arg2) :: Int
+    let initialState = initial seed
+
+    putStrLn $ "MCTS DEMO: CONNECT 4"
+    putStrLn $ "Warning: no bounds checking on user input yet please be kind to me."
+    game n initialState 1
+
+
+

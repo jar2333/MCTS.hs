@@ -3,6 +3,7 @@
 module MCTS
     ( 
         Player(..),
+        opposing,
 
         GameState,
         next,
@@ -13,9 +14,8 @@ module MCTS
         mcts, 
         drawGameTree,
 
-        step,
-        root,
-        applyNtimes
+        testMCTS,
+        testStep
     ) where
 
 
@@ -33,10 +33,10 @@ applyNtimes n f x = f (applyNtimes (n-1) f x)
 
 data Player = One | Two | Tie deriving (Eq, Show)
 
-opposite :: Player -> Player
-opposite One = Two
-opposite Two = One
-opposite Tie = Tie
+opposing :: Player -> Player
+opposing One = Two
+opposing Two = One
+opposing Tie = Tie
 
 class GameState g where  
     next :: g -> [g]    -- gets gamestates available from given
@@ -105,7 +105,7 @@ possibleMoves GameData{gameState=g, player=p} = do
     return $ updated ++ other
     where 
           updated  = zipWith updateWins results simulated
-          (simulated, other) = splitAt rollout [GameData 0 0 (opposite p) gs | gs <- states ]
+          (simulated, other) = splitAt rollout [GameData 0 0 (opposing p) gs | gs <- states ]
           results  = map sim (take rollout states) `using` parList rseq --parallelism
           states   = next g 
           rollout  = 2 -- magic number, change later
@@ -148,3 +148,11 @@ walk (Node d ch) = do
     where 
           selected:rest = sortBy compareUCB ch
           compareUCB = compare `on` ((*(-1)) . ucb d . getGameData) --max instead of min hence *-1
+
+
+testStep :: (Show g, GameState g) => Int -> Player -> g -> IO ()
+testStep n p g = (putStrLn . drawGameTree) (applyNtimes n step r)
+    where r = root p g
+
+testMCTS :: (Show g, GameState g) => Int -> Player -> g -> IO ()
+testMCTS n p g = print $ mcts n p g
