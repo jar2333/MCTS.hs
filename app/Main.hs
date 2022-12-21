@@ -6,22 +6,6 @@ import Data.Matrix
 import System.Random
 import Data.Vector(findIndex, toList)
 
----------------
--- FOR TESTING
----------------
-
-data SimpleState = Yes | No deriving (Show, Eq)
-
-instance GameState SimpleState where
-    next Yes = [Yes, No]
-    next No  = [Yes]
-    eval Yes = Just One
-    eval No = Just Two
-    pick _ gs = head gs
-    sim g = case eval g of
-        Nothing -> Tie
-        Just(r) -> r
-
 ----------------------------
 -- CONNECT 4 IMPLEMENTATION
 ----------------------------
