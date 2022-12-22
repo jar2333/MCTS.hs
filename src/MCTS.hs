@@ -36,12 +36,12 @@ class GameState g where
     sim :: g -> Player                                      -- gets a winner of a game state (default is a simulation)
     sim g = case next g of
                 [] -> case eval g of 
-                         Just(result) -> result
-                         Nothing      -> Tie                -- if nothing new is possible, and no clear outcome, it's a Tie
+                         Just result  -> result
+                         Nothing      -> Tie --if nothing new is possible, and no clear outcome, it's a Tie
 
                 gs -> let picked = pick g gs 
                       in case eval picked of 
-                         Just(result) -> result
+                         Just result  -> result
                          Nothing      -> sim picked 
 
 opposing :: Player -> Player
