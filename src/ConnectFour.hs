@@ -47,7 +47,10 @@ maxRun lst@(h:_) = (case h of
 ------------------------------------------
 -- MCTS GameState instance definitions!
 ------------------------------------------
-data (RandomGen r) => ConnectFourState r = State {board :: Matrix Color, currentPlayer :: Color, lastMove :: (Int, Int), rng :: r}
+data (RandomGen r) => ConnectFourState r = State {  board :: Matrix Color, 
+                                                    currentPlayer :: Color, 
+                                                    lastMove :: (Int, Int), 
+                                                    rng :: r }
 
 instance (RandomGen r) => Show (ConnectFourState r) where
     show (State b p l _) = "\n" ++ show b ++ "\ncurrent player: " ++ show p ++ "\nlast move: " ++ show l
@@ -115,7 +118,7 @@ game n rollout s@(State b _ _ r) turn = do
 
 simulation :: Int -> Int -> ConnectFourState StdGen -> Int -> IO ()
 simulation n rollout s@(State _ current _ _) turn = do
-    let player = getPlayer current
+    let player = toPlayer current
     putStrLn $ "Turn " ++ show turn ++ ":\nPlayer " ++ show player ++"'s turn (choose a column): " ++ show s ++ "\n"
     
     let newState = mcts n rollout player s
@@ -125,6 +128,3 @@ simulation n rollout s@(State _ current _ _) turn = do
     case eval newState of
         Just(p) | p == player -> putStrLn $ "Player " ++ show player ++ " Win!"
         _ -> simulation n rollout newState (turn+1)
-
-    where getPlayer Red = One
-          getPlayer Yellow = Two

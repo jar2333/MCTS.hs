@@ -28,26 +28,26 @@ import Control.Parallel.Strategies
 
 data Player = One | Two | Tie deriving (Eq, Show)
 
-opposing :: Player -> Player
-opposing One = Two
-opposing Two = One
-opposing Tie = Tie
-
 class GameState g where  
-    next :: g -> [g]    -- gets gamestates available from given
-    eval :: g -> Maybe(Player) -- determines the winner of the given gamestate
-    pick :: g -> [g] -> g    -- picks a gamestate from a list of available ones given parent gamestate
+    next :: g -> [g]                                        -- gets gamestates available from given
+    eval :: g -> Maybe(Player)                              -- determines the winner of the given gamestate
+    pick :: g -> [g] -> g                                   -- picks a gamestate from a list of available ones given parent gamestate
 
-    sim :: g -> Player  -- gets a winner of a game state (default is a simulation)
+    sim :: g -> Player                                      -- gets a winner of a game state (default is a simulation)
     sim g = case next g of
                 [] -> case eval g of 
                          Just(result) -> result
-                         Nothing      -> Tie --if nothing new is possible, and no clear outcome, it's a Tie
+                         Nothing      -> Tie                -- if nothing new is possible, and no clear outcome, it's a Tie
 
                 gs -> let picked = pick g gs 
                       in case eval picked of 
                          Just(result) -> result
                          Nothing      -> sim picked 
+
+opposing :: Player -> Player
+opposing One = Two
+opposing Two = One
+opposing Tie = Tie
 
 -- Number of iterations, number of rollouts, initial player, starting state
 mcts :: GameState g => Int -> Int -> Player -> g -> g
@@ -111,14 +111,17 @@ possibleMoves GameData{gameState=g, player=p} = do
 
     let states  = next g 
 
-    let results = map sim (take rollout states) `using` parList rseq --parallelism
+    let (toSimulate, other) = splitAt rollout states
 
-    let (simulated, other) = splitAt rollout [GameData 0 0 (opposing p) gs | gs <- states ]
-    let updated = zipWith updateWins results simulated
+    let results = map sim toSimulate `using` parList rseq --parallelism
+
+    let simulatedChildren = zipWith updateWins results [GameData 0 0 (opposing p) gs | gs <- toSimulate ]
+
+    let otherChildren =  [GameData 0 0 (opposing p) gs | gs <- other ]
 
     put (results, rollout)
 
-    return $ updated ++ other
+    return $ simulatedChildren ++ otherChildren
           
 
 -- Returns a list of children tree nodes created from given node's game state
@@ -135,8 +138,7 @@ expand (Node d ch) = do
 -- Use the state monad to propagate upwards the list of winning player in simulated/evaluated nodes as a state
 walk :: GameState g => GameTree g -> State ([GameResult], Int) (GameTree g)
 
--- Leaf node
-walk n@(Node d []) = do 
+walk n@(Node d []) = do  -- Leaf node
     newChildren <- expand n 
     case newChildren of
         [] -> do -- If no tree children created, simulate game from leaf and update it with results
@@ -150,8 +152,7 @@ walk n@(Node d []) = do
             let updatedData = foldr updateWins d results
             return $ Node updatedData ch
 
--- Branch node
-walk (Node d ch) = do
+walk (Node d ch) = do -- Branch node
     updatedChild    <- walk selected
     (results, _)    <- get
     let children    = updatedChild:rest
