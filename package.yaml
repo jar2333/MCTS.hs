@@ -52,7 +52,6 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -eventlog
-    - -prof
     dependencies:
     - MCTS
 
@@ -64,7 +63,6 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -eventlog
-    - -prof
     dependencies:
     - MCTS
 
@@ -78,6 +76,5 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     - -eventlog
-    - -prof
     dependencies:
     - MCTS
