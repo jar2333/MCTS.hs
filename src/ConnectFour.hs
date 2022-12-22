@@ -126,5 +126,5 @@ simulation n rollout s@(State _ current _ _) turn = do
 
     -- win check
     case eval newState of
-        Just(p) | p == player -> putStrLn $ "Player " ++ show player ++ " Win!"
+        Just(p) | p == player -> putStrLn $ "Player " ++ show player ++ "(" ++ show current ++ ")" ++ " Win!"
         _ -> simulation n rollout newState (turn+1)

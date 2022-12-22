@@ -37,7 +37,7 @@ class GameState g where
     sim g = case next g of
                 [] -> case eval g of 
                          Just result  -> result
-                         Nothing      -> Tie --if nothing new is possible, and no clear outcome, it's a Tie
+                         Nothing      -> Tie                -- if nothing new is possible, and no clear outcome, it's a Tie
 
                 gs -> let picked = pick g gs 
                       in case eval picked of 

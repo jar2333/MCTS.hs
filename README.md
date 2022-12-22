@@ -15,6 +15,6 @@ The parameters are as follows:
 - `<rollout>`: the number of simulations to run at each game tree leaf (run in parallel!)
 - `<seed>`: the seed for the random number generator used in simulation
 
-To run the simulation (agent vs agent):
+To run the simulation (agent vs agent), with same parameters:
 
-`stack exec MCTS-simulation`
+`stack exec MCTS-simulation <iter> <rollout> <seed>`
